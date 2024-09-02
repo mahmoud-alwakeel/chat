@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:chat_app/widgets/user_image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 final _firebase = FirebaseAuth.instance;
 
@@ -20,6 +20,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isLogin = true;
   bool _isAuthenticating = false;
   String _enteredEmail = '';
+  String _enteredUsername = '';
   String _enteredPassword = '';
   File? pickedImage;
 
@@ -36,7 +37,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _isAuthenticating = true;
       });
       if (_isLogin) {
-        final userCredintials = await _firebase.signInWithEmailAndPassword(
+        await _firebase.signInWithEmailAndPassword(
           email: _enteredEmail,
           password: _enteredPassword,
         );
@@ -51,7 +52,15 @@ class _AuthScreenState extends State<AuthScreen> {
             .child('${userCredintials.user!.uid}.jpg');
         await storageRef.putFile(pickedImage!);
         final imageUrl = await storageRef.getDownloadURL();
-        print(imageUrl);
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredintials.user!.uid)
+            .set({
+          'username': _enteredUsername,
+          'email': _enteredEmail,
+          'image_url': imageUrl,
+        });
       }
     } on FirebaseAuthException catch (error) {
       if (error.code == 'email-already-in-use') {
@@ -109,6 +118,25 @@ class _AuthScreenState extends State<AuthScreen> {
                           UserImagePicker(
                             onPickImage: (image) {
                               pickedImage = image;
+                            },
+                          ),
+                        if (!_isLogin)
+                          TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'username',
+                            ),
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            validator: (value) {
+                              if (value == null ||
+                                  value.isEmpty ||
+                                  value.trim().length < 3) {
+                                return "Please enter at least 3 characters";
+                              }
+                              return null;
+                            },
+                            onSaved: (val) {
+                              _enteredUsername = val!;
                             },
                           ),
                         TextFormField(
